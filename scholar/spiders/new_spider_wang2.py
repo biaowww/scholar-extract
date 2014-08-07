@@ -33,15 +33,6 @@ class ScholarSpider(CrawlSpider):
         hxs = Selector(response)
         item = ScholarItem()
 
-        # get a link for next page
-        next_page = hxs.xpath('//p[@class="pager_space"]/a')
-        next_page_link = u""
-        for link in next_page:
-            if link.xpath('t/text()').extract() == []:
-                pass
-            elif link.xpath('t/text()').extract()[0] == u'\u4e0b\u4e00\u9875':
-                next_page_link = link.xpath('@href').extract()
-
         # get links for scholors
         groups = hxs.xpath('//div[@class="CoResearcherList"]')
 
@@ -62,12 +53,6 @@ class ScholarSpider(CrawlSpider):
                 request.meta['item'] = item
                 yield request
                 self.artileID.add(m.group(1))
-
-        tmp="".join(next_page_link)
-        request = Request(url="http://social.wanfangdata.com.cn/Scholar.aspx"+tmp, cookies={'PreferredCulture':'zh-CN'}, callback=self.parse_home)
-        request.meta['item'] = item
-        yield request
-
 
     def parse_coList(self,response):
         hxs = Selector(response)
