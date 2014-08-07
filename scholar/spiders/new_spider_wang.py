@@ -1,52 +1,41 @@
 __author__ = 'peiyu'
 
-import urllib
-from scrapy.http import Request
-from scrapy.contrib.linkextractors import LinkExtractor
 from scrapy.contrib.spiders import CrawlSpider, Rule
-from scholar.items import ScholarItem
+from scrapy.contrib.linkextractors import LinkExtractor
+from scrapy.http import Request
 from scrapy.selector import Selector
-from scrapy.http.cookies import CookieJar
-
-def web_address(word):
-    """convert keyword to web address content"""
-    return urllib.quote(word)
+from scholar.items import ScholarItem
 
 class ScholarSpider(CrawlSpider):
     name = "scholar5"
-    allowed_domains = []
+    allowed_domains = ['wanfangdata.com.cn']
     url = "http://social.wanfangdata.com.cn/Scholar.aspx?q=%20%E5%8D%95%E4%BD%8D%3A%22%E5%8C%BB%E9%99%A2%22"
     start_urls = [url,]
-    num = 1
 
     rules = [
-            Rule(LinkExtractor(restrict_xpaths=('//p[@class="pager_space"]'), unique=True), callback="parse_home", follow=True),  
+            Rule(LinkExtractor(restrict_xpaths=('//div[@class="CoResearcherList"]/p/a'), unique=True), callback="parse_keyword", follow=False),
+            Rule(LinkExtractor(restrict_xpaths=('//p[@class="pager_space"]'), unique=True), follow=True),  
     ]
 
-    def parse_home(self, response):
-        self.log("Fetch search page: %s" % response.url)
+    def parse_keyword(self,response):
+        # print 'I am in parse_keyword!!!' + '+'*200
         hxs = Selector(response)
+        item = ScholarItem()
+        
+        # parsing keyword information
+        words = hxs.xpath('//div[@class="keyword_ul"]/li/a/text()').extract()
+        all_word = u'|'.join(words)
+        item['keyword'] = all_word
 
-        # get links for scholors
-        groups = hxs.xpath('//div[@class="CoResearcherList"]')
-
-        scholarsCoList = []
-        scholarsKeyword = []
-        for group in groups:
-            scholar_url = group.xpath('p/a/@href').extract()
-            scholarsCoList.append("".join(scholar_url).replace("Achievement.aspx","CoResearcher.aspx"))
-            scholarsKeyword.append("".join(scholar_url))
-
-        for surl in scholarsCoList:
-            yield Request(url=surl, cookies={'PreferredCulture':'zh-CN'}, callback=self.parse_coList)
-
-        for kurl in scholarsKeyword:
-            yield Request(url=kurl, cookies={'PreferredCulture':'zh-CN'}, callback=self.parse_keyword)
+        coListURL = response.url.replace("Achievement.aspx", "CoResearcher.aspx")
+        yield Request(url=coListURL, cookies={'PreferredCulture':'zh-CN'}, meta={'item':item}, callback=self.parse_coList)
 
     def parse_coList(self,response):
+        # print 'I am in parse_coList!!!' + '+'*200
         hxs = Selector(response)
+        item = ScholarItem(response.meta['item'])
+        
         # parsing personal information
-        item = ScholarItem()
         head = hxs.xpath('//div[@class="head_list"]')
         item['Scholars'] = head.xpath("h1/a/text()").extract()
         item['UrlID'] = head.xpath("h1/a/@href").extract()
@@ -86,27 +75,5 @@ class ScholarSpider(CrawlSpider):
 
         item["Tutor"] = u"#".join(item["Tutor"])
         item["CoResearchers"] = u"#".join(item["CoResearchers"])
+        
         yield item
-
-    def parse_keyword(self,response):
-        hxs = Selector(response)
-        item = ScholarItem()
-        # parsing keyword information
-        words = hxs.xpath('//div[@class="keyword_ul"]/li/a/text()').extract()
-        for word in words:
-            item['keyword'].append(u'|'.join(word))
-        yield item
-
-
-
-
-
-
-
-
-
-
-
-
-
-
